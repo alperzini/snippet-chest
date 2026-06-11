@@ -1,0 +1,59 @@
+{
+  "name": "snippet-sidebar",
+  "publisher": "local-dev",
+  "displayName": "Snippet Sidebar",
+  "description": "A Photoshop-style sidebar panel for your most-forgotten code patterns",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "snippet-sidebar",
+          "title": "Snippets",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "snippet-sidebar": [
+        {
+          "type": "webview",
+          "id": "snippetPanel",
+          "name": "Code Snippets"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "snippetSidebar.refresh",
+        "title": "Refresh Snippets",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "snippetSidebar.addSnippet",
+        "title": "Add Snippet",
+        "icon": "$(add)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "snippetSidebar.addSnippet",
+          "when": "view == snippetPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "snippetSidebar.refresh",
+          "when": "view == snippetPanel",
+          "group": "navigation"
+        }
+      ]
+    }
+  }
+}
+
+
