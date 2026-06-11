@@ -319,6 +319,30 @@ function getWebviewContent(snippets, userSnippets) {
       color: var(--vscode-foreground);
     }
 
+    .io-row {
+      display: flex;
+      gap: 6px;
+      padding: 0 8px 8px;
+    }
+
+    .io-btn {
+      flex: 1;
+      background: transparent;
+      border: 1px solid var(--vscode-input-border, #555);
+      color: var(--vscode-descriptionForeground);
+      cursor: pointer;
+      padding: 5px 6px;
+      font-size: 11px;
+      border-radius: 3px;
+      font-family: var(--vscode-font-family);
+      text-align: center;
+    }
+
+    .io-btn:hover {
+      background: var(--vscode-list-hoverBackground);
+      color: var(--vscode-foreground);
+    }
+
     .empty-user {
       padding: 10px 14px;
       color: var(--vscode-descriptionForeground);
@@ -577,7 +601,12 @@ function getWebviewContent(snippets, userSnippets) {
       document.getElementById('user-count').textContent = userSnippets.length;
 
       if (userSnippets.length === 0) {
-        container.innerHTML = '<div class="empty-user">No snippets yet — click + to add one.</div>';
+        container.innerHTML = '<div class="empty-user">No snippets yet — click + to add one.</div>' +
+          '<div class="add-cat-row"><button class="add-cat-btn" id="add-cat-btn">+ Add Category</button></div>' +
+          '<div class="io-row">' +
+          '<button class="io-btn" id="load-btn">&#8659; Load Snippets</button>' +
+          '<button class="io-btn" id="save-btn">&#8657; Save Snippets</button>' +
+          '</div>';
         reapplySearch();
         return;
       }
@@ -605,7 +634,11 @@ function getWebviewContent(snippets, userSnippets) {
           '</div>';
       }).join('');
 
-      html += '<div class="add-cat-row"><button class="add-cat-btn" id="add-cat-btn">+ Add Category</button></div>';
+      html += '<div class="add-cat-row"><button class="add-cat-btn" id="add-cat-btn">+ Add Category</button></div>' +
+        '<div class="io-row">' +
+        '<button class="io-btn" id="load-btn">&#8659; Load Snippets</button>' +
+        '<button class="io-btn" id="save-btn">&#8657; Save Snippets</button>' +
+        '</div>';
       container.innerHTML = html;
 
       attachDragListeners();
@@ -781,6 +814,18 @@ function getWebviewContent(snippets, userSnippets) {
 
       if (e.target.closest('.add-cat-btn')) { openModal(null, '', true); return; }
 
+      if (e.target.closest('#save-btn')) {
+        vscode.postMessage({ type: 'saveSnippetsToFile', snippets: userSnippets.map(function(s) {
+          return { label: s.label, description: s.description || '', category: s.category || 'General', code: s.code };
+        })});
+        return;
+      }
+
+      if (e.target.closest('#load-btn')) {
+        vscode.postMessage({ type: 'loadSnippetsFromFile' });
+        return;
+      }
+
       var delBtn = e.target.closest('.delete-btn');
       if (delBtn) { handleDelete(delBtn.closest('.user-snippet').dataset.id); return; }
 
@@ -934,7 +979,43 @@ function getWebviewContent(snippets, userSnippets) {
     // ── Messages from extension ──
 
     window.addEventListener('message', function(e) {
-      if (e.data.type === 'openAddForm') openModal(null);
+      if (e.data.type === 'openAddForm') { openModal(null); return; }
+
+      if (e.data.type === 'snippetsLoaded') {
+        var now = Date.now();
+        var added = 0;
+
+        e.data.snippets.forEach(function(s, i) {
+          var label    = (s.label || 'Untitled').trim();
+          var category = (s.category || 'Imported').trim();
+          var code     = (s.code || '').trim();
+
+          var duplicate = userSnippets.some(function(ex) {
+            return ex.label.trim() === label &&
+                   (ex.category || 'General').trim() === category &&
+                   ex.code.trim() === code;
+          });
+
+          if (!duplicate) {
+            userSnippets.push({
+              id: (now + i).toString(),
+              label: label,
+              description: s.description || '',
+              category: category,
+              code: s.code || ''
+            });
+            added++;
+          }
+        });
+
+        if (added > 0) {
+          saveToExtension();
+          renderUserSnippets();
+          showToast('Loaded ' + added + ' new snippet' + (added !== 1 ? 's' : ''));
+        } else {
+          showToast('All snippets already exist — nothing added');
+        }
+      }
     });
 
     // ── Search ──

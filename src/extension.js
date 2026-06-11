@@ -65,7 +65,7 @@ class SnippetSidebarProvider {
     webviewView.webview.options = { enableScripts: true };
     webviewView.webview.html = getWebviewContent(SNIPPETS, this._storage.getAll());
 
-    webviewView.webview.onDidReceiveMessage((message) => {
+    webviewView.webview.onDidReceiveMessage(async (message) => {
       switch (message.type) {
         case 'insertSnippet':
           this._insertSnippet(message.code);
@@ -73,6 +73,41 @@ class SnippetSidebarProvider {
         case 'saveSnippets':
           this._storage.setAll(message.snippets);
           break;
+        case 'saveSnippetsToFile': {
+          const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file('snippets.json'),
+            filters: { 'Snippets': ['json'], 'All Files': ['*'] }
+          });
+          if (!uri) break;
+          try {
+            fs.writeFileSync(uri.fsPath, JSON.stringify(message.snippets, null, 2));
+            vscode.window.showInformationMessage('Snippets exported successfully!');
+          } catch (err) {
+            vscode.window.showErrorMessage('Export failed: ' + err.message);
+          }
+          break;
+        }
+        case 'loadSnippetsFromFile': {
+          const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            filters: { 'Snippets': ['json'], 'All Files': ['*'] },
+            openLabel: 'Load Snippets'
+          });
+          if (!uris || uris.length === 0) break;
+          try {
+            const raw = fs.readFileSync(uris[0].fsPath, 'utf8');
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) throw new Error('File must contain a JSON array');
+            const valid = parsed.filter(s => s && typeof s.label === 'string' && typeof s.code === 'string');
+            if (valid.length === 0) throw new Error('No valid snippets found in file');
+            webviewView.webview.postMessage({ type: 'snippetsLoaded', snippets: valid });
+          } catch (err) {
+            vscode.window.showErrorMessage('Load failed: ' + err.message);
+          }
+          break;
+        }
       }
     });
   }
