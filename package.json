@@ -1,8 +1,8 @@
 {
   "name": "snippet-sidebar",
   "publisher": "local-dev",
-  "displayName": "Snippet Sidebar",
-  "description": "A Photoshop-style sidebar panel for your most-forgotten code patterns",
+  "displayName": "SnippetChest",
+  "description": "A sidebar panel to store, organize, and insert your personal code snippets",
   "version": "0.0.1",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
@@ -14,7 +14,7 @@
         {
           "id": "snippet-sidebar",
           "title": "Snippets",
-          "icon": "media/icon.svg"
+          "icon": "media/snippetchest.svg"
         }
       ]
     },
@@ -23,7 +23,7 @@
         {
           "type": "webview",
           "id": "snippetPanel",
-          "name": "Code Snippets"
+          "name": "SnippetChest"
         }
       ]
     },
@@ -37,6 +37,10 @@
         "command": "snippetSidebar.addSnippet",
         "title": "Add Snippet",
         "icon": "$(add)"
+      },
+      {
+        "command": "snippetSidebar.addFromSelection",
+        "title": "Add to SnippetChest..."
       }
     ],
     "menus": {
@@ -50,6 +54,13 @@
           "command": "snippetSidebar.refresh",
           "when": "view == snippetPanel",
           "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "snippetSidebar.addFromSelection",
+          "when": "editorHasSelection",
+          "group": "z_commands@1"
         }
       ]
     }

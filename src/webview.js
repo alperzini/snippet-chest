@@ -1,4 +1,5 @@
-function getWebviewContent(snippets, userSnippets) {
+function getWebviewContent(snippets, userSnippets, userCategories) {
+  userCategories = userCategories || [];
   const categoriesHtml = snippets.map(category => {
     const itemsHtml = category.items.map(item => `
       <div class="snippet-item">
@@ -21,13 +22,15 @@ function getWebviewContent(snippets, userSnippets) {
   }).join('');
 
   const userSnippetsJson = JSON.stringify(userSnippets);
+  const userCategoriesJson = JSON.stringify(userCategories);
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snippets</title>
+  <title>SnippetChest</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -141,8 +144,8 @@ function getWebviewContent(snippets, userSnippets) {
       flex-direction: column;
       gap: 2px;
       transition: background 0.1s, border-color 0.1s;
-    }
-
+    }5
+5
     .snippet-btn:hover {
       background: var(--vscode-list-hoverBackground);
       border-color: var(--vscode-list-focusOutline, transparent);
@@ -253,9 +256,21 @@ function getWebviewContent(snippets, userSnippets) {
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 5px 8px 3px 10px;
+      padding: 5px 8px 3px 6px;
       user-select: none;
     }
+
+    .user-cat-toggle {
+      font-size: 9px;
+      padding: 1px 4px;
+      opacity: 0.5;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+
+    .user-cat-toggle:hover { opacity: 1; }
+
+    .user-cat-group.collapsed .user-cat-items { display: none; }
 
     .user-cat-name {
       font-size: 11px;
@@ -348,6 +363,13 @@ function getWebviewContent(snippets, userSnippets) {
       color: var(--vscode-descriptionForeground);
       font-size: 11px;
       font-style: italic;
+    }
+    .empty-cat-hint {
+      padding: 6px 10px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 10px;
+      font-style: italic;
+      opacity: 0.7;
     }
 
     /* ── Category custom dropdown ── */
@@ -579,19 +601,22 @@ function getWebviewContent(snippets, userSnippets) {
   <div class="toast" id="toast"></div>
 
   <script id="user-snippets-data" type="application/json">${userSnippetsJson}</script>
+  <script id="user-categories-data" type="application/json">${userCategoriesJson}</script>
 
   <script>
     var vscode = acquireVsCodeApi();
     var userSnippets = JSON.parse(document.getElementById('user-snippets-data').textContent);
+    var userCategories = JSON.parse(document.getElementById('user-categories-data').textContent);
     var editingId = null;
     var dragSrcId = null;
+    var collapsedCats = {};
 
     renderUserSnippets();
 
     // ── Save all snippets to extension ──
 
     function saveToExtension() {
-      vscode.postMessage({ type: 'saveSnippets', snippets: userSnippets });
+      vscode.postMessage({ type: 'saveSnippets', snippets: userSnippets, categories: userCategories });
     }
 
     // ── Render grouped user snippets ──
@@ -600,32 +625,40 @@ function getWebviewContent(snippets, userSnippets) {
       var container = document.getElementById('user-snippets-container');
       document.getElementById('user-count').textContent = userSnippets.length;
 
-      if (userSnippets.length === 0) {
-        container.innerHTML = '<div class="empty-user">No snippets yet — click + to add one.</div>' +
-          '<div class="add-cat-row"><button class="add-cat-btn" id="add-cat-btn">+ Add Category</button></div>' +
-          '<div class="io-row">' +
-          '<button class="io-btn" id="load-btn">&#8659; Load Snippets</button>' +
-          '<button class="io-btn" id="save-btn">&#8657; Save Snippets</button>' +
-          '</div>';
+      // Build ordered category list: explicit empty ones first, then any from snippets
+      var order = userCategories.slice();
+      userSnippets.forEach(function(s) {
+        var cat = (s.category && s.category.trim()) ? s.category.trim() : 'General';
+        if (order.indexOf(cat) === -1) order.push(cat);
+      });
+
+      if (order.length === 0) {
+        container.innerHTML = '<div class="empty-user">No snippets yet - Click + to add one.</div>' +
+          addCatRowHtml() + ioBtnsHtml();
         reapplySearch();
         return;
       }
 
       var groups = {};
-      var order = [];
       userSnippets.forEach(function(s) {
         var cat = (s.category && s.category.trim()) ? s.category.trim() : 'General';
-        if (!groups[cat]) { groups[cat] = []; order.push(cat); }
+        if (!groups[cat]) groups[cat] = [];
         groups[cat].push(s);
       });
 
       var html = order.map(function(cat) {
-        var items = groups[cat];
-        var itemsHtml = items.map(snippetItemHtml).join('');
-        return '<div class="user-cat-group" data-cat="' + escHtml(cat) + '">' +
+        var items = groups[cat] || [];
+        var isEmpty = items.length === 0;
+        var isCollapsed = !!collapsedCats[cat];
+        var itemsHtml = isEmpty
+          ? '<div class="empty-cat-hint">No snippets yet — drag here or use +</div>'
+          : items.map(snippetItemHtml).join('');
+        return '<div class="user-cat-group' + (isCollapsed ? ' collapsed' : '') + '" data-cat="' + escHtml(cat) + '">' +
           '<div class="user-cat-header">' +
+          '<button class="action-btn user-cat-toggle" data-cat="' + escHtml(cat) + '" title="Collapse / Expand">' + (isCollapsed ? '&#9658;' : '&#9660;') + '</button>' +
           '<span class="user-cat-name" data-cat="' + escHtml(cat) + '">' + escHtml(cat) + '</span>' +
           '<button class="action-btn user-cat-rename" data-cat="' + escHtml(cat) + '" title="Rename category">✏</button>' +
+          (isEmpty ? '<button class="action-btn user-cat-delete" data-cat="' + escHtml(cat) + '" title="Remove category">✕</button>' : '') +
           '<span class="user-cat-count">' + items.length + '</span>' +
           '</div>' +
           '<div class="user-cat-items drop-zone" data-cat="' + escHtml(cat) + '">' +
@@ -634,15 +667,22 @@ function getWebviewContent(snippets, userSnippets) {
           '</div>';
       }).join('');
 
-      html += '<div class="add-cat-row"><button class="add-cat-btn" id="add-cat-btn">+ Add Category</button></div>' +
-        '<div class="io-row">' +
-        '<button class="io-btn" id="load-btn">&#8659; Load Snippets</button>' +
-        '<button class="io-btn" id="save-btn">&#8657; Save Snippets</button>' +
-        '</div>';
+      html += addCatRowHtml() + ioBtnsHtml();
       container.innerHTML = html;
 
       attachDragListeners();
       reapplySearch();
+    }
+
+    function addCatRowHtml() {
+      return '<div class="add-cat-row"><button class="add-cat-btn">+ Add Category</button></div>';
+    }
+
+    function ioBtnsHtml() {
+      return '<div class="io-row">' +
+        '<button class="io-btn" id="load-btn">&#8659; Load Snippets</button>' +
+        '<button class="io-btn" id="save-btn">&#8657; Save Snippets</button>' +
+        '</div>';
     }
 
     function snippetItemHtml(s) {
@@ -792,6 +832,7 @@ function getWebviewContent(snippets, userSnippets) {
             var c = (s.category && s.category.trim()) ? s.category.trim() : 'General';
             return c === oldName ? Object.assign({}, s, { category: newName }) : s;
           });
+          userCategories = userCategories.map(function(c) { return c === oldName ? newName : c; });
           saveToExtension();
         }
         renderUserSnippets();
@@ -804,15 +845,67 @@ function getWebviewContent(snippets, userSnippets) {
       });
     }
 
+    // ── Add Category inline input ──
+
+    function startAddCategory(rowEl) {
+      rowEl.innerHTML = '<input class="cat-rename-input" id="new-cat-input" placeholder="Category name…" style="width:calc(100% - 4px)" />';
+      var input = document.getElementById('new-cat-input');
+      input.focus();
+
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        var name = input.value.trim();
+        if (name && userCategories.indexOf(name) === -1) {
+          userCategories.push(name);
+          saveToExtension();
+        }
+        renderUserSnippets();
+      }
+
+      input.addEventListener('blur', finish);
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); finish(); }
+        if (e.key === 'Escape') { done = true; renderUserSnippets(); }
+      });
+    }
+
+    function removeCategory(name) {
+      userCategories = userCategories.filter(function(c) { return c !== name; });
+      saveToExtension();
+      renderUserSnippets();
+    }
+
     // ── Central click handler ──
 
     document.getElementById('snippet-list').addEventListener('click', function(e) {
       if (e.target.closest('#add-btn')) return;
 
+      var catToggle = e.target.closest('.user-cat-toggle');
+      if (catToggle) {
+        var tcat = catToggle.dataset.cat;
+        var group = catToggle.closest('.user-cat-group');
+        if (collapsedCats[tcat]) {
+          delete collapsedCats[tcat];
+          group.classList.remove('collapsed');
+          catToggle.innerHTML = '&#9660;';
+        } else {
+          collapsedCats[tcat] = true;
+          group.classList.add('collapsed');
+          catToggle.innerHTML = '&#9658;';
+        }
+        return;
+      }
+
       var catRename = e.target.closest('.user-cat-rename');
       if (catRename) { renameCategory(catRename.dataset.cat); return; }
 
-      if (e.target.closest('.add-cat-btn')) { openModal(null, '', true); return; }
+      var catDelete = e.target.closest('.user-cat-delete');
+      if (catDelete) { removeCategory(catDelete.dataset.cat); return; }
+
+      var addCatBtn = e.target.closest('.add-cat-btn');
+      if (addCatBtn) { startAddCategory(addCatBtn.closest('.add-cat-row')); return; }
 
       if (e.target.closest('#save-btn')) {
         vscode.postMessage({ type: 'saveSnippetsToFile', snippets: userSnippets.map(function(s) {
@@ -880,7 +973,8 @@ function getWebviewContent(snippets, userSnippets) {
       var dropdown = document.getElementById('category-dropdown');
       var query = input.value.toLowerCase().trim();
 
-      var cats = [];
+      // Start with explicitly created categories, then add any from snippets
+      var cats = userCategories.slice();
       userSnippets.forEach(function(s) {
         var c = (s.category && s.category.trim()) ? s.category.trim() : 'General';
         if (cats.indexOf(c) === -1) cats.push(c);
@@ -915,7 +1009,7 @@ function getWebviewContent(snippets, userSnippets) {
       ta.selectionStart = ta.selectionEnd = s + 1;
     });
 
-    function openModal(id, prefillCat, focusCat) {
+    function openModal(id, prefillCat, focusCat, prefillCode) {
       editingId = id;
       document.getElementById('modal-title').textContent = id ? 'Edit Snippet' : 'Add Snippet';
 
@@ -929,7 +1023,7 @@ function getWebviewContent(snippets, userSnippets) {
         document.getElementById('f-label').value = '';
         document.getElementById('f-desc').value = '';
         document.getElementById('f-category').value = prefillCat || '';
-        document.getElementById('f-code').value = '';
+        document.getElementById('f-code').value = prefillCode || '';
       }
 
       showErr('label', false);
@@ -980,6 +1074,11 @@ function getWebviewContent(snippets, userSnippets) {
 
     window.addEventListener('message', function(e) {
       if (e.data.type === 'openAddForm') { openModal(null); return; }
+
+      if (e.data.type === 'openAddFormWithCode') {
+        openModal(null, '', false, e.data.code);
+        return;
+      }
 
       if (e.data.type === 'snippetsLoaded') {
         var now = Date.now();

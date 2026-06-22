@@ -7,31 +7,35 @@ const { getWebviewContent } = require('./webview');
 class SnippetsStorage {
   constructor(globalStoragePath) {
     this._filePath = path.join(globalStoragePath, 'user-snippets.json');
-    this._snippets = this._load();
+    this._data = this._load();
   }
 
   _load() {
     try {
       if (fs.existsSync(this._filePath)) {
-        return JSON.parse(fs.readFileSync(this._filePath, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(this._filePath, 'utf8'));
+        // Migrate old format (plain array) to new format
+        if (Array.isArray(raw)) return { snippets: raw, categories: [] };
+        return raw;
       }
     } catch {}
-    return [];
+    return { snippets: [], categories: [] };
   }
 
   _save() {
     try {
       fs.mkdirSync(path.dirname(this._filePath), { recursive: true });
-      fs.writeFileSync(this._filePath, JSON.stringify(this._snippets, null, 2));
+      fs.writeFileSync(this._filePath, JSON.stringify(this._data, null, 2));
     } catch (err) {
       vscode.window.showErrorMessage('Snippet Sidebar: failed to save — ' + err.message);
     }
   }
 
-  getAll() { return this._snippets; }
+  getSnippets()    { return this._data.snippets; }
+  getCategories()  { return this._data.categories; }
 
-  setAll(snippets) {
-    this._snippets = snippets;
+  setAll(snippets, categories) {
+    this._data = { snippets, categories: categories || this._data.categories };
     this._save();
   }
 }
@@ -51,6 +55,22 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('snippetSidebar.addSnippet', () => provider.openAddForm())
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('snippetSidebar.addFromSelection', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+
+      const selectedText = editor.document.getText(editor.selection);
+      if (!selectedText.trim()) {
+        vscode.window.showWarningMessage('Select some code first');
+        return;
+      }
+
+      await vscode.commands.executeCommand('snippetPanel.focus');
+      provider.openAddFormWithCode(selectedText);
+    })
+  );
 }
 
 class SnippetSidebarProvider {
@@ -58,22 +78,44 @@ class SnippetSidebarProvider {
     this._extensionUri = extensionUri;
     this._storage = storage;
     this._view = null;
+    this._pendingCode = null;
   }
 
   resolveWebviewView(webviewView) {
     this._view = webviewView;
-    webviewView.webview.options = { enableScripts: true };
-    webviewView.webview.html = getWebviewContent(SNIPPETS, this._storage.getAll());
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'media')]
+    };
+    webviewView.webview.html = getWebviewContent(SNIPPETS, this._storage.getSnippets(), this._storage.getCategories());
+
+    if (this._pendingCode) {
+      const code = this._pendingCode;
+      this._pendingCode = null;
+      setTimeout(() => webviewView.webview.postMessage({ type: 'openAddFormWithCode', code }), 150);
+    }
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       switch (message.type) {
-        case 'insertSnippet':
+        case 'insertSnippet': {
+          if (typeof message.code !== 'string') break;
           this._insertSnippet(message.code);
           break;
-        case 'saveSnippets':
-          this._storage.setAll(message.snippets);
+        }
+        case 'saveSnippets': {
+          if (!Array.isArray(message.snippets)) break;
+          if (message.categories !== undefined && !Array.isArray(message.categories)) break;
+          const cleanSnippets = message.snippets.filter(
+            s => s && typeof s.id === 'string' && typeof s.label === 'string' && typeof s.code === 'string'
+          );
+          const cleanCategories = Array.isArray(message.categories)
+            ? message.categories.filter(c => typeof c === 'string')
+            : [];
+          this._storage.setAll(cleanSnippets, cleanCategories);
           break;
+        }
         case 'saveSnippetsToFile': {
+          if (!Array.isArray(message.snippets)) break;
           const uri = await vscode.window.showSaveDialog({
             defaultUri: vscode.Uri.file('snippets.json'),
             filters: { 'Snippets': ['json'], 'All Files': ['*'] }
@@ -114,13 +156,21 @@ class SnippetSidebarProvider {
 
   refresh() {
     if (this._view) {
-      this._view.webview.html = getWebviewContent(SNIPPETS, this._storage.getAll());
+      this._view.webview.html = getWebviewContent(SNIPPETS, this._storage.getSnippets(), this._storage.getCategories());
     }
   }
 
   openAddForm() {
     if (this._view) {
       this._view.webview.postMessage({ type: 'openAddForm' });
+    }
+  }
+
+  openAddFormWithCode(code) {
+    if (this._view) {
+      this._view.webview.postMessage({ type: 'openAddFormWithCode', code });
+    } else {
+      this._pendingCode = code;
     }
   }
 
