@@ -12,6 +12,7 @@
     "type": "git",
     "url": "https://github.com/alperzini/snippet-sidebar"
   },
+  "license": "MIT",
   "activationEvents": [],
   "main": "./src/extension.js",
   "contributes": {
