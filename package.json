@@ -1,5 +1,5 @@
 {
-  "name": "snippet-sidebar",
+  "name": "snippetchest",
   "publisher": "AlperZini",
   "displayName": "SnippetChest",
   "description": "A sidebar panel to store, organize, and insert your personal code snippets",
@@ -10,7 +10,7 @@
   "icon": "media/snippetchest.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alperzini/snippet-sidebar"
+    "url": "https://github.com/alperzini/snippet-chest"
   },
   "license": "MIT",
   "activationEvents": [],
