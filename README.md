@@ -19,14 +19,12 @@ A VS Code sidebar extension for storing, organizing, and instantly inserting you
 
 ---
 
-## Getting Started (Dev Mode)
+## Getting Started
 
-1. Open the `snippet-sidebar` folder in VS Code
-2. Press **F5** to launch an Extension Development Host window
-3. In the new window, click the **SnippetChest icon** in the Activity Bar
+1. Open the **Extensions** panel in VS Code (`Cmd+Shift+X` on Mac, `Ctrl+Shift+X` on Windows/Linux)
+2. Search for **SnippetChest** and click **Install**
+3. Click the **SnippetChest icon** in the Activity Bar on the left
 4. The panel opens — you're ready to go
-
-To reload after making changes, press **F5** again (full restart) or **Cmd+R** inside the Extension Development Host window for a lighter refresh.
 
 ---
 
@@ -77,18 +75,6 @@ The export format is a plain JSON array, human-readable and easy to share:
   }
 ]
 ```
-
----
-
-## Packaging for Distribution (optional)
-
-```bash
-npx @vscode/vsce package
-# Produces: snippet-sidebar-0.0.1.vsix
-# Install:  code --install-extension snippet-sidebar-0.0.1.vsix
-```
-
-> No global install needed — `npx` handles it automatically.
 
 ---
 
