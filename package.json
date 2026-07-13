@@ -3,10 +3,19 @@
   "publisher": "AlperZini",
   "displayName": "SnippetChest",
   "description": "A sidebar panel to store, organize, and insert your personal code snippets",
-  "version": "0.0.1",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Snippets"],
-  "keywords": ["snippets", "sidebar", "productivity", "code snippets"],
+  "version": "0.0.2",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Snippets"
+  ],
+  "keywords": [
+    "snippets",
+    "sidebar",
+    "productivity",
+    "code snippets"
+  ],
   "icon": "media/snippetchest.png",
   "repository": {
     "type": "git",
