@@ -3,7 +3,7 @@
   "publisher": "AlperZini",
   "displayName": "SnippetChest",
   "description": "A sidebar panel to store, organize, and insert your personal code snippets",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.85.0"
   },
