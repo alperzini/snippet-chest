@@ -21,8 +21,8 @@ function getWebviewContent(snippets, userSnippets, userCategories) {
     `;
   }).join('');
 
-  const userSnippetsJson = JSON.stringify(userSnippets);
-  const userCategoriesJson = JSON.stringify(userCategories);
+  const userSnippetsJson = JSON.stringify(userSnippets).replace(/</g, '\\u003c');
+  const userCategoriesJson = JSON.stringify(userCategories).replace(/</g, '\\u003c');
 
   return `<!DOCTYPE html>
 <html lang="en">
